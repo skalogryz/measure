@@ -9,7 +9,7 @@ uses
   cthreads,
   {$ENDIF}
   Classes, logtext, papertext, logtextutils, textlayoututils
-  ,textmeasure, winfonttools
+  ,textmeasure, winfonttools, wintextmeasure
   { you can add units after this };
 
 procedure FillDocument(doc: TLogDocument);
@@ -78,9 +78,22 @@ begin
   end;
 end;
 
+procedure RunMeasure;
+var
+  f : TFontInfo;
+  res: TTextMeasure;
+begin
+  f.Name := 'Arial';
+  f.Size := 10;
+  f.Style := [];
+  MeasureText('aaa', f, res);
+  writeln(res.size.cx:0:1,' ',res.size.cy:0:1);
+end;
+
 begin
   //RunTest;
   //RunTestSplit();
-  RunDC;
+  //RunDC;
+  RunMeasure;
 end.
 

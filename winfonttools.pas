@@ -45,7 +45,7 @@ type
     destructor Destroy; override;
     procedure RefreshFonts;
     procedure ClearFonts;
-
+    function FindFont(const fntName: WideString): TWinFontRecord; // case-sensitive
     function MeasureText(const text: WideString; const fnt: TWinFontRecord; sizePt: double): TPtSize;
   end;
 
@@ -86,13 +86,62 @@ begin
 end;
 
 constructor TWinMeasure.Create;
+var
+  mm : integer;
+const
+  TextScale = 1.0; // for better accuracy, it's possible to scale the font
+                   // However, due to rounding the scale font might give different results
+                   // Then an attempt to draw the text
 begin
   inherited Create;
   fonts:=TList.Create;
-  dc := CreateDCW('DISPLAY', nil, nil, nil);
+  //dc := CreateDCW('DISPLAY', nil, nil, nil);
+  dc := CreateCompatibleDC(0);
+  //SetGraphicsMode(dc, GM_ADVANCED);
+  writeln( GetDeviceCaps(dc, LOGPIXELSX ));
+  mm := GetMapMode(dc);
+  //writeln('mm = ', mm);
+  case mm of
+    { Logical units are mapped to arbitrary units with equally scaled axes;
+      that is, one unit along the x-axis is equal to one unit along the y-axis.
+      Use the SetWindowExtEx and SetViewportExtEx functions to specify
+      the units and the orientation of the axes. Graphics device interface
+      makes adjustments as necessary to ensure the x and y units remain
+      the same size. (When the windows extent is set, the viewport will be
+      adjusted to keep the units isotropic).}
+    MM_ISOTROPIC,
+      { Logical units are mapped to arbitrary units with arbitrarily scaled axes.
+        Use the SetWindowExtEx and SetViewportExtEx functions to specify the units,
+        orientation, and scaling required. }
+    MM_ANISOTROPIC: begin
+      SetWindowExtEx(dc, 20, 20, nil);
+      PtToLog := 20;
+    end;
 
-  SetMapMode(dc, MM_TWIPS);
-  PtToLog := 20; // from points to
+    { Each logical unit is mapped to 0.001 inch.
+      Positive x is to the right; positive y is up. }
+    MM_HIENGLISH: PtToLog := (1 / 72) / 0.001;
+
+    { Each logical unit is mapped to 0.01 inch. Positive x is to the right; positive y is up. }
+    MM_LOENGLISH: PtToLog := (1 / 72) / 0.01;
+
+    { Each logical unit is mapped to 0.01 millimeter. Positive x is to the right; positive y is up. }
+    //MM_HIMETRIC:
+
+    { Each logical unit is mapped to 0.1 millimeter. Positive x is to the right; positive y is up. }
+    //MM_LOMETRIC: PtToLog := 72 / GetDeviceCaps(dc, LOGPIXELSY);
+
+    { Each logical unit is mapped to one device pixel.
+      Positive x is to the right; positive y is down. }
+    MM_TEXT: PtToLog := GetDeviceCaps(dc, LOGPIXELSY) / 72 * TextScale;
+
+    { Each logical unit is mapped to one twentieth of a printer's point
+      (1/1440 inch, also called a "twip"). Positive x is to the right;
+      positive y is up }
+    MM_TWIPS: PtToLog := 20;
+  else
+    PtToLog := 1;
+  end;
   LogToPt := 1 / PtToLog;
 end;
 
@@ -142,6 +191,17 @@ begin
   for i:=0 to fonts.Count-1 do
     TObject(fonts[i]).Free;
   fonts.Clear;
+end;
+
+function TWinMeasure.FindFont(const fntName: WideString): TWinFontRecord;
+var
+  i : integer;
+begin
+  for i:=0 to fonts.Count-1 do begin
+    Result := TWinFontRecord(fonts[i]);
+    if Result.name = fntName then Exit;
+  end;
+  Result := nil;
 end;
 
 function TWinMeasure.MeasureText(const text: WideString;
